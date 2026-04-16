@@ -1,0 +1,34 @@
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import authRoutes from './routes/auth.js';
+import userRoutes from './routes/users.js';
+import groupRoutes from './routes/groups.js';
+import sessionRoutes from './routes/sessions.js';
+import ratingRoutes from './routes/ratings.js';
+
+const app = express();
+
+app.use(cors({ origin: true }));
+app.use(express.json());
+app.use(morgan('dev'));
+
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, project: 'study-group-matcher' });
+});
+
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/groups', groupRoutes);
+app.use('/api', sessionRoutes);
+app.use('/api', ratingRoutes);
+
+app.use((error, _req, res, _next) => {
+  console.error(error);
+  res.status(500).json({
+    success: false,
+    message: 'Server error.'
+  });
+});
+
+export default app;

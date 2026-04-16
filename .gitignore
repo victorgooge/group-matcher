@@ -1,0 +1,17 @@
+node_modules/
+dist/
+docs/
+.vite/
+.env
+.env.local
+.env.*.local
+coverage/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+server/data/
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
