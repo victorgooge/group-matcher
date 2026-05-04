@@ -1,5 +1,6 @@
 <template>
   <span class="pill reliability-pill" :title="`Reliability score: ${label}`" :data-tier="tier">
+    <span class="reliability-pill__dot" />
     <strong>{{ label }}</strong>
     <span class="muted">({{ normalizedScore }})</span>
   </span>

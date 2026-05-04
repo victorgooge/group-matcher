@@ -1,72 +1,99 @@
 <template>
   <section class="card" style="max-width: 840px; margin: 0 auto;">
-    <div style="display: flex; justify-content: space-between; gap: 1rem; align-items: start; flex-wrap: wrap;">
-      <div>
-        <h1 class="section-title">{{ isEditing ? 'Edit Study Group' : 'Create a Study Group' }}</h1>
-        <p class="muted">Keep the info specific so students understand the fit quickly.</p>
+    <div class="page-header">
+      <div class="page-header__content">
+        <p class="eyebrow">{{ isEditing ? 'Update Group' : 'New Group' }}</p>
+        <h1 class="page-title">{{ isEditing ? 'Edit Study Group' : 'Create a Study Group' }}</h1>
+        <p class="muted tight">Keep the info specific so students can understand the fit quickly.</p>
       </div>
       <RouterLink class="button secondary" v-if="isEditing" :to="`/groups/${route.params.id}`">Back to Group</RouterLink>
     </div>
 
     <form class="form" @submit.prevent="handleSubmit">
-      <label>
-        Group Title
-        <input v-model="form.title" type="text" placeholder="CSC 4370 Midterm Prep" required />
-      </label>
+      <div class="form-section">
+        <div class="form-section__header">
+          <h2>Basic Details</h2>
+          <p>Start with the core information students use to decide whether the group is relevant.</p>
+        </div>
 
-      <label>
-        Course Code
-        <input v-model="form.courseCode" type="text" placeholder="CSC 4370" required />
-      </label>
-
-      <label>
-        Description
-        <textarea v-model="form.description" rows="5" placeholder="What will this study group focus on?" required />
-      </label>
-
-      <div class="grid grid-2">
         <label>
-          Meeting Format
-          <select v-model="form.meetingFormat">
-            <option>In-Person</option>
-            <option>Online</option>
-            <option>Hybrid</option>
-          </select>
+          Group Title
+          <input v-model="form.title" type="text" placeholder="CSC 4370 Midterm Prep" required />
+          <span class="field-hint">Use the course and the goal so the purpose is obvious right away.</span>
         </label>
 
-        <label>
-          Capacity
-          <input v-model.number="form.capacity" type="number" min="2" max="50" required />
-        </label>
-      </div>
+        <div class="grid grid-2">
+          <label>
+            Course Code
+            <input v-model="form.courseCode" type="text" placeholder="CSC 4370" required />
+          </label>
 
-      <div class="grid grid-2">
-        <label>
-          Location
-          <input v-model="form.location" type="text" placeholder="Library North 3F" />
-        </label>
+          <label>
+            Capacity
+            <input v-model.number="form.capacity" type="number" min="2" max="50" required />
+            <span class="field-hint">Set the maximum number of active members you want in the group.</span>
+          </label>
+        </div>
 
         <label>
-          Meeting Link
-          <input v-model="form.meetingLink" type="text" placeholder="https://meet.example.com/study" />
+          Description
+          <textarea v-model="form.description" rows="5" placeholder="What will this study group focus on?" required />
+          <span class="field-hint">Mention the topic, pace, and what members should expect from sessions.</span>
         </label>
       </div>
 
-      <div class="grid grid-2">
+      <div class="form-section">
+        <div class="form-section__header">
+          <h2>Meeting Setup</h2>
+          <p>Clarify how the group meets so people can quickly rule it in or out.</p>
+        </div>
+
+        <div class="grid grid-2">
+          <label>
+            Meeting Format
+            <select v-model="form.meetingFormat">
+              <option>In-Person</option>
+              <option>Online</option>
+              <option>Hybrid</option>
+            </select>
+          </label>
+
+          <label>
+            Preferred Study Style
+            <select v-model="form.preferredStudyStyle">
+              <option value="">Any</option>
+              <option>Silent / Focused</option>
+              <option>Discussion-heavy</option>
+              <option>Problem-solving</option>
+              <option>Mixed</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="grid grid-2">
+          <label>
+            Location
+            <input v-model="form.location" type="text" placeholder="Library North 3F" />
+          </label>
+
+          <label>
+            Meeting Link
+            <input v-model="form.meetingLink" type="text" placeholder="https://meet.example.com/study" />
+            <span class="field-hint">Use whichever field matches the format best. You can leave the other blank.</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section__header">
+          <h2>Extra Context</h2>
+          <p>These details help the right students recognize the fit faster.</p>
+        </div>
+
         <label>
           Tags
           <input v-model="form.tags" type="text" placeholder="Vue, API, finals" />
-        </label>
-
-        <label>
-          Preferred Study Style
-          <select v-model="form.preferredStudyStyle">
-            <option value="">Any</option>
-            <option>Silent / Focused</option>
-            <option>Discussion-heavy</option>
-            <option>Problem-solving</option>
-            <option>Mixed</option>
-          </select>
+          <span class="field-hint">Separate tags with commas to highlight topics or focus areas.</span>
         </label>
       </div>
 
@@ -74,8 +101,10 @@
         {{ submitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Group' }}
       </button>
 
-      <p v-if="message" class="success-text">{{ message }}</p>
-      <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+      <div class="feedback-stack">
+        <p v-if="message" class="feedback-banner feedback-banner--success success-text">{{ message }}</p>
+        <p v-if="errorMessage" class="feedback-banner feedback-banner--error error-text">{{ errorMessage }}</p>
+      </div>
     </form>
   </section>
 </template>

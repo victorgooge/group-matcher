@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   study_style TEXT,
   courses_json TEXT NOT NULL DEFAULT '[]',
   preferred_group_size INTEGER,
+  is_looking_for_group INTEGER NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -82,10 +83,16 @@ CREATE TABLE IF NOT EXISTS sessions (
   location TEXT,
   notes TEXT,
   created_by INTEGER NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('scheduled', 'completed', 'cancelled')) DEFAULT 'scheduled',
+  status TEXT NOT NULL CHECK (status IN ('scheduled', 'active', 'completed', 'cancelled', 'rescheduled', 'missed')) DEFAULT 'scheduled',
+  started_at DATETIME,
+  completed_at DATETIME,
+  cancelled_at DATETIME,
+  rescheduled_at DATETIME,
+  rescheduled_from_session_id INTEGER,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
-  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (rescheduled_from_session_id) REFERENCES sessions(id)
 );
 
 CREATE TABLE IF NOT EXISTS attendance (
@@ -94,6 +101,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   user_id INTEGER NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('present', 'absent', 'excused', 'no_show')) DEFAULT 'absent',
   marked_by_user_id INTEGER,
+  checked_in_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(session_id, user_id),
@@ -126,4 +134,18 @@ CREATE TABLE IF NOT EXISTS reliability_snapshots (
   no_show_count INTEGER NOT NULL DEFAULT 0,
   computed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS group_invitations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id INTEGER NOT NULL,
+  inviter_user_id INTEGER NOT NULL,
+  invited_user_id INTEGER NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('pending', 'accepted', 'declined')) DEFAULT 'pending',
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(group_id, invited_user_id),
+  FOREIGN KEY (group_id) REFERENCES study_groups(id) ON DELETE CASCADE,
+  FOREIGN KEY (inviter_user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (invited_user_id) REFERENCES users(id) ON DELETE CASCADE
 );

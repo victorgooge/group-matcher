@@ -6,6 +6,7 @@ import userRoutes from './routes/users.js';
 import groupRoutes from './routes/groups.js';
 import sessionRoutes from './routes/sessions.js';
 import ratingRoutes from './routes/ratings.js';
+import invitationRoutes from './routes/invitations.js';
 
 const app = express();
 
@@ -22,6 +23,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/groups', groupRoutes);
 app.use('/api', sessionRoutes);
 app.use('/api', ratingRoutes);
+app.use('/api/invitations', invitationRoutes);
 
 app.use((error, _req, res, _next) => {
   console.error(error);

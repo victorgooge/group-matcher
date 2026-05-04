@@ -54,12 +54,29 @@ export const groupsApi = {
   requestJoin: (id) => apiFetch(`/groups/${id}/join-request`, { method: 'POST' }),
   approveRequest: (groupId, requestId) => apiFetch(`/groups/${groupId}/requests/${requestId}/approve`, { method: 'POST' }),
   rejectRequest: (groupId, requestId) => apiFetch(`/groups/${groupId}/requests/${requestId}/reject`, { method: 'POST' }),
-  removeMember: (groupId, memberId) => apiFetch(`/groups/${groupId}/members/${memberId}`, { method: 'DELETE' })
+  removeMember: (groupId, memberId) => apiFetch(`/groups/${groupId}/members/${memberId}`, { method: 'DELETE' }),
+  getStudentMatches: (groupId) => apiFetch(`/groups/${groupId}/student-matches`),
+  sendInvitation: (groupId, invitedUserId) =>
+    apiFetch(`/groups/${groupId}/invitations`, { method: 'POST', body: JSON.stringify({ invitedUserId }) })
 };
 
 export const sessionsApi = {
   create: (groupId, body) => apiFetch(`/groups/${groupId}/sessions`, { method: 'POST', body: JSON.stringify(body) }),
   get: (sessionId) => apiFetch(`/sessions/${sessionId}`),
-  saveAttendance: (sessionId, body) => apiFetch(`/sessions/${sessionId}/attendance`, { method: 'POST', body: JSON.stringify(body) }),
-  rate: (sessionId, body) => apiFetch(`/sessions/${sessionId}/ratings`, { method: 'POST', body: JSON.stringify(body) })
+  start: (sessionId) => apiFetch(`/sessions/${sessionId}/start`, { method: 'PATCH' }),
+  complete: (sessionId) => apiFetch(`/sessions/${sessionId}/complete`, { method: 'PATCH' }),
+  cancel: (sessionId) => apiFetch(`/sessions/${sessionId}/cancel`, { method: 'PATCH' }),
+  reschedule: (sessionId, body) =>
+    apiFetch(`/sessions/${sessionId}/reschedule`, { method: 'PATCH', body: JSON.stringify(body) }),
+  checkIn: (sessionId) => apiFetch(`/sessions/${sessionId}/check-in`, { method: 'POST' }),
+  saveAttendance: (sessionId, body) =>
+    apiFetch(`/sessions/${sessionId}/attendance`, { method: 'POST', body: JSON.stringify(body) }),
+  rate: (sessionId, body) =>
+    apiFetch(`/sessions/${sessionId}/ratings`, { method: 'POST', body: JSON.stringify(body) })
+};
+
+export const invitationsApi = {
+  getMyInvitations: () => apiFetch('/invitations'),
+  respond: (invitationId, accept) =>
+    apiFetch(`/invitations/${invitationId}/respond`, { method: 'PATCH', body: JSON.stringify({ accept }) })
 };

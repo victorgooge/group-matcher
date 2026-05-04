@@ -506,4 +506,142 @@ router.delete('/:id/members/:memberId', requireAuth, async (req, res, next) => {
   }
 });
 
+// Find students who are a potential match for a group (leader only).
+router.get('/:id/student-matches', requireAuth, async (req, res, next) => {
+  try {
+    const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
+    if (!ownsGroup && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only the group leader can view student matches.' });
+    }
+
+    const group = await getGroup(req.params.id);
+    if (!group) {
+      return res.status(404).json({ success: false, message: 'Group not found.' });
+    }
+
+    const groupCourse = group.course_code.toLowerCase();
+
+    // Get students who are not already members and have no pending invite for this group.
+    const candidates = await all(
+      `SELECT
+         u.id,
+         u.name,
+         p.major,
+         p.study_style,
+         p.courses_json,
+         p.preferred_group_size,
+         p.is_looking_for_group
+       FROM users u
+       JOIN profiles p ON p.user_id = u.id
+       WHERE u.role = 'student'
+         AND u.id NOT IN (
+           SELECT user_id FROM group_members WHERE group_id = ? AND status = 'active'
+         )
+         AND u.id NOT IN (
+           SELECT invited_user_id FROM group_invitations WHERE group_id = ? AND status = 'pending'
+         )`,
+      [req.params.id, req.params.id]
+    );
+
+    const scored = await Promise.all(
+      candidates.map(async (candidate) => {
+        const courses = JSON.parse(candidate.courses_json ?? '[]');
+        const reliability = await getUserReliability(candidate.id);
+        let score = 0;
+        const reasons = [];
+
+        if (courses.some((c) => c.toLowerCase() === groupCourse)) {
+          score += 40;
+          reasons.push('Enrolled in ' + group.course_code);
+        }
+
+        if (candidate.is_looking_for_group) {
+          score += 20;
+          reasons.push('Looking for a group');
+        }
+
+        if (
+          candidate.study_style &&
+          group.preferred_study_style &&
+          candidate.study_style.toLowerCase() === group.preferred_study_style.toLowerCase()
+        ) {
+          score += 15;
+          reasons.push('Matching study style');
+        }
+
+        if (reliability.score !== null && reliability.score >= 75) {
+          score += 15;
+          reasons.push('High reliability');
+        } else if (reliability.score !== null && reliability.score >= 50) {
+          score += 5;
+          reasons.push('Moderate reliability');
+        }
+
+        return {
+          id: candidate.id,
+          name: candidate.name,
+          major: candidate.major,
+          studyStyle: candidate.study_style,
+          courses,
+          isLookingForGroup: Boolean(candidate.is_looking_for_group),
+          reliability: {
+            score: reliability.score,
+            label: reliability.label
+          },
+          matchScore: score,
+          matchReasons: reasons
+        };
+      })
+    );
+
+    scored.sort((a, b) => b.matchScore - a.matchScore);
+
+    return res.json({ success: true, data: { matches: scored } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Leader invites a student to the group.
+router.post('/:id/invitations', requireAuth, async (req, res, next) => {
+  try {
+    const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
+    if (!ownsGroup && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Only the group leader can send invitations.' });
+    }
+
+    const invitedUserId = Number(req.body.invitedUserId);
+    if (!invitedUserId) {
+      return res.status(400).json({ success: false, message: 'invitedUserId is required.' });
+    }
+
+    const target = await get(`SELECT id, role FROM users WHERE id = ?`, [invitedUserId]);
+    if (!target) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    const alreadyMember = await get(
+      `SELECT id FROM group_members WHERE group_id = ? AND user_id = ? AND status = 'active'`,
+      [req.params.id, invitedUserId]
+    );
+    if (alreadyMember) {
+      return res.status(409).json({ success: false, message: 'User is already a member of this group.' });
+    }
+
+    try {
+      await run(
+        `INSERT INTO group_invitations (group_id, inviter_user_id, invited_user_id, status)
+         VALUES (?, ?, ?, 'pending')`,
+        [req.params.id, req.user.id, invitedUserId]
+      );
+    } catch {
+      return res.status(409).json({ success: false, message: 'An invitation for this user already exists.' });
+    }
+
+    return res.status(201).json({ success: true, message: 'Invitation sent.' });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 export default router;

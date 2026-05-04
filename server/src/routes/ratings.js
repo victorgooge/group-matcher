@@ -23,6 +23,14 @@ router.post('/sessions/:id/ratings', requireAuth, async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Ratings must be between 1 and 5.' });
     }
 
+    const session = await get(`SELECT status FROM sessions WHERE id = ?`, [req.params.id]);
+    if (!session) {
+      return res.status(404).json({ success: false, message: 'Session not found.' });
+    }
+    if (session.status !== 'completed') {
+      return res.status(400).json({ success: false, message: 'Ratings can only be submitted for completed sessions.' });
+    }
+
     const attendanceRows = await all(
       `SELECT user_id, status
        FROM attendance

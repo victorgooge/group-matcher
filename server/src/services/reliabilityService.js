@@ -16,8 +16,7 @@ export function computeReliabilitySnapshot({
   attendanceCount = 0,
   totalAttendanceCount = 0,
   peerRatingAverage = null,
-  noShowCount = 0,
-  minimumRatings = 2
+  noShowCount = 0
 }) {
   const attendanceRate = totalAttendanceCount > 0 ? attendanceCount / totalAttendanceCount : 0;
   const noShowPenalty = noShowCount * 5;
@@ -36,26 +35,29 @@ export function computeReliabilitySnapshot({
     peerRatingAverage,
     noShowCount,
     noShowPenalty,
-    minimumRatings,
     hasEnoughRatings,
     hasHistory
   };
 }
 
+// Only count attendance records from completed sessions so in-progress or missed
+// sessions do not skew the score before they are finalized.
 export async function getUserReliability(userId) {
   const attendanceRows = await all(
-    `SELECT status
-     FROM attendance
-     WHERE user_id = ?`,
+    `SELECT a.status
+     FROM attendance a
+     JOIN sessions s ON s.id = a.session_id
+     WHERE a.user_id = ? AND s.status = 'completed'`,
     [userId]
   );
 
   const ratingSummary = await get(
     `SELECT
-       AVG(score) AS peer_rating_average,
+       AVG(r.score) AS peer_rating_average,
        COUNT(*) AS rating_count
-     FROM ratings
-     WHERE rated_user_id = ?`,
+     FROM ratings r
+     JOIN sessions s ON s.id = r.session_id
+     WHERE r.rated_user_id = ? AND s.status = 'completed'`,
     [userId]
   );
 

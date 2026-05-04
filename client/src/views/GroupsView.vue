@@ -1,17 +1,18 @@
 <template>
-  <section class="grid">
+  <section class="stack-lg">
     <div class="card">
-      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: center;">
-        <div>
-          <h1 class="section-title">Browse Study Groups</h1>
-          <p class="muted">Sorts with course fit, schedule overlap, study style, and reliability bonus.</p>
+      <div class="page-header">
+        <div class="page-header__content">
+          <p class="eyebrow">Find A Group</p>
+          <h1 class="page-title">Browse Study Groups</h1>
+          <p class="muted tight">Search by course or format, then open the groups that look like the best fit.</p>
         </div>
         <RouterLink v-if="auth.user?.role === 'leader' || auth.user?.role === 'admin'" class="button" to="/groups/new">Create Group</RouterLink>
       </div>
 
-      <div class="grid grid-2" style="margin-top: 1rem;">
+      <div class="grid grid-2">
         <label>
-          Search
+          Search by course or title
           <input v-model="filters.search" type="text" placeholder="CSC 4370 or Data Structures" />
         </label>
 
@@ -26,17 +27,18 @@
         </label>
       </div>
 
-      <div style="margin-top: 1rem;">
+      <div class="inline-actions">
         <button class="button secondary" type="button" @click="loadGroups">Apply Filters</button>
+        <p class="muted tight">{{ groups.length }} groups shown</p>
       </div>
     </div>
 
     <div class="list">
       <GroupCard v-for="group in groups" :key="group.id" :group="group" />
-      <p v-if="!groups.length && !loading" class="card muted">No groups matched those filters.</p>
+      <p v-if="!groups.length && !loading" class="card empty-state">No groups matched those filters.</p>
     </div>
 
-    <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+    <p v-if="errorMessage" class="feedback-banner feedback-banner--error error-text">{{ errorMessage }}</p>
   </section>
 </template>
 

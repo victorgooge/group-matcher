@@ -84,6 +84,7 @@ router.put('/me', requireAuth, async (req, res, next) => {
     const studyStyle = String(req.body.studyStyle || '').trim();
     const preferredGroupSize = req.body.preferredGroupSize ? Number(req.body.preferredGroupSize) : null;
     const courses = parseCourses(req.body.courses);
+    const isLookingForGroup = req.body.isLookingForGroup ? 1 : 0;
 
     if (!name) {
       return res.status(400).json({ success: false, message: 'Name is required.' });
@@ -92,9 +93,9 @@ router.put('/me', requireAuth, async (req, res, next) => {
     await run(`UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [name, req.user.id]);
     await run(
       `UPDATE profiles
-       SET major = ?, bio = ?, study_style = ?, courses_json = ?, preferred_group_size = ?, updated_at = CURRENT_TIMESTAMP
+       SET major = ?, bio = ?, study_style = ?, courses_json = ?, preferred_group_size = ?, is_looking_for_group = ?, updated_at = CURRENT_TIMESTAMP
        WHERE user_id = ?`,
-      [major, bio, studyStyle, JSON.stringify(courses), preferredGroupSize, req.user.id]
+      [major, bio, studyStyle, JSON.stringify(courses), preferredGroupSize, isLookingForGroup, req.user.id]
     );
 
     return res.json({ success: true, message: 'Profile updated successfully.' });

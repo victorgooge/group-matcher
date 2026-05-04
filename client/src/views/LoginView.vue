@@ -1,8 +1,11 @@
 <template>
   <section class="auth-shell">
     <div class="card auth-card">
-      <h1 class="section-title">Login</h1>
-      <p class="muted">Use a seeded account or sign in with a registered user.</p>
+      <div class="page-header__content">
+        <p class="eyebrow">Welcome Back</p>
+        <h1 class="page-title">Login</h1>
+        <p class="muted tight">Sign in with an existing account to see your dashboard, groups, and profile.</p>
+      </div>
 
       <form class="form" @submit.prevent="handleSubmit">
         <label>
@@ -13,13 +16,16 @@
         <label>
           Password
           <input v-model="form.password" type="password" placeholder="Password123!" required />
+          <span class="field-hint">Use the email and password tied to your existing account.</span>
         </label>
 
         <button class="button" type="submit" :disabled="submitting">
           {{ submitting ? 'Logging in...' : 'Login' }}
         </button>
 
-        <p v-if="errorMessage" class="error-text">{{ errorMessage }}</p>
+        <div class="feedback-stack">
+          <p v-if="errorMessage" class="feedback-banner feedback-banner--error error-text">{{ errorMessage }}</p>
+        </div>
       </form>
     </div>
   </section>
