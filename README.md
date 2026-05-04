@@ -186,7 +186,7 @@ See [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for instructions on dep
 
 ## Academic Context
 
-This project was submitted as the CSC 4370 Web Programming final project at Georgia State University. The paper accompanying this repository is available at [docs/study-group-matcher-report.tex](docs/study-group-matcher-report.tex).
+This project was submitted as the CSC 4370 Web Programming final project at Georgia State University. The paper accompanying this repository is available at [./study-group-matcher-report.tex](docs/study-group-matcher-report.tex).
 
 **Author:** Victor Googe — vgooge1@student.gsu.edu
 

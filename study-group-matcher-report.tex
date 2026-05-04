@@ -1,0 +1,365 @@
+\documentclass[conference]{IEEEtran}
+
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  showstringspaces=false
+}
+
+\begin{document}
+
+\title{Design and Implementation of a Reliability-Aware Study Group Matcher Web Application}
+
+\author{
+\IEEEauthorblockN{Victor Googe}
+\IEEEauthorblockA{
+Department of Computer Science\\
+Georgia State University\\
+Email: vgooge1@student.gsu.edu}
+}
+
+\maketitle
+
+\begin{abstract}
+This paper presents the design and full-stack implementation of a web application for matching college students with study groups based on course enrollment, schedule availability, and study preferences. The project extends a conventional study-group platform by introducing a reliability and reputation system that promotes dependable participation. The application was built for CSC~4370 using Vue~3, Vite, Vue Router, Pinia, Node.js, Express, and SQLite. The completed prototype delivers a working client--server architecture with JWT-based authentication, a relational data model covering users, groups, sessions, attendance, and ratings, and an explainable scoring formula that combines attendance history, peer feedback, and no-show penalties. The system supports the full lifecycle of a study group: profile creation, availability tracking, group browsing with match scoring, join-request approval, session scheduling, live attendance check-in, post-session peer rating, and leader-initiated student invitations. The project demonstrates that a focused, reliability-aware feature set can be designed, implemented, and demonstrated within a single semester using modern JavaScript tools.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Vue.js, Node.js, Express, SQLite, Web Programming, Study Groups, Reliability System, Full-Stack Development, JWT Authentication
+\end{IEEEkeywords}
+
+\section{Introduction}
+Many students benefit from studying in groups, but finding a group that is both relevant and dependable can be difficult. Existing coordination methods, such as informal group chats or class discussion boards, do not help students evaluate whether other members are likely to show up, contribute, and remain engaged over time. Students may join groups that appear promising but fail due to repeated absences or poor follow-through.
+
+The goal of this project was to design and build a \textit{Study Group Matcher} web application that helps students create and join study groups while also providing a reliability-aware view of membership quality. Instead of matching students only by course or schedule, the system introduces a computed reliability score based on attendance records and peer ratings. This score is displayed throughout the application so that students and group leaders can make more informed decisions when forming or joining groups.
+
+The main contributions of this project are as follows:
+\begin{itemize}
+    \item A fully working full-stack prototype aligned with the tools and concepts covered in the course.
+    \item A relational database schema modeling users, profiles, study groups, sessions, attendance, ratings, invitations, and reliability snapshots.
+    \item A transparent reliability-scoring formula that rewards consistent attendance and penalizes no-shows.
+    \item A complete user workflow from account registration through group membership, session attendance, and peer rating.
+    \item A contextual group leadership model that allows any student to create and lead groups without requiring a separate privileged account role.
+\end{itemize}
+
+\section{Project Overview and Requirements}
+The project was based on \textit{Theme D --- Study Group Matcher}, specifically \textit{Variant D4 --- Rating / Reliability System}. The system was designed around two account-level roles and one contextual group role:
+
+\begin{itemize}
+    \item \textbf{Student:} create a profile, set availability, browse groups, request to join groups, attend sessions, self-check-in during live sessions, and rate peers after completion.
+    \item \textbf{Teacher:} same capabilities as a Student plus elevated platform-oversight permissions, equivalent to an administrator.
+    \item \textbf{Group Leader (contextual):} any student who creates a group becomes its leader. The leader approves or rejects join requests, schedules sessions, starts and completes sessions, records attendance, and invites matched students. This is a per-group role that does not require a special account type.
+\end{itemize}
+
+The key project requirement was that the application support normal study-group workflows and include a mechanism for representing how dependable a member has been in prior group participation. This requirement informed every major design decision, from the database schema to the UI layout.
+
+\section{System Architecture}
+The application follows a standard client--server architecture with a REST API boundary separating the frontend from the backend.
+
+\subsection{Frontend}
+The frontend is built with Vue~3 and Vite. Vue Router manages client-side navigation, and Pinia manages authentication state globally. Heroicons provide consistent iconography throughout the interface. The major views include:
+\begin{itemize}
+    \item Home (landing page with call-to-action),
+    \item Login and Register pages,
+    \item Dashboard (reliability summary, upcoming sessions, group panel, onboarding progress),
+    \item Profile (edit academic info, study style, and recurring availability blocks),
+    \item Groups browse page (search, format filter, match scoring, and fit labels),
+    \item Group detail page (leader layout and member layout variants),
+    \item My Groups (groups led and groups joined, with member count and location),
+    \item Session detail page (attendance management, self check-in, and peer rating).
+\end{itemize}
+
+\subsection{Backend}
+The backend uses Node.js and Express. Route modules are separated by domain: authentication, users, groups, sessions, ratings, and invitations. JWT-based middleware protects all authenticated routes. A \texttt{requireAuth} middleware validates the bearer token on every protected request, while a \texttt{requireRole} utility can restrict specific actions to Teacher-level accounts.
+
+\subsection{Database Layer}
+SQLite was selected as the persistence layer because it requires no server process, is easy to seed and reset during development, and still supports meaningful relational modeling with foreign keys, constraints, and composite unique indexes.
+
+\section{Database Design}
+The schema was designed around the real entities involved in study-group coordination. Table~\ref{tab:tables} summarizes the core tables.
+
+\begin{table}[htbp]
+\caption{Core Database Tables}
+\label{tab:tables}
+\begin{center}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{2.6cm}|>{\raggedright\arraybackslash}p{5.1cm}|}
+\hline
+\textbf{Table} & \textbf{Purpose} \\
+\hline
+users & Login identity, role (\texttt{student} or \texttt{teacher}), and timestamps \\
+\hline
+profiles & Academic major, bio, study style, course list, group-size preference, and looking-for-group flag \\
+\hline
+availability\_blocks & Recurring day-of-week windows used for schedule matching \\
+\hline
+study\_groups & Title, course code, description, format, location, meeting link, capacity, and leader reference \\
+\hline
+group\_members & Accepted memberships with active/removed status \\
+\hline
+group\_join\_requests & Pending requests awaiting leader decision \\
+\hline
+group\_invitations & Leader-initiated invitations sent to matched students \\
+\hline
+sessions & Scheduled meetings with status lifecycle: scheduled, active, completed, cancelled, missed, rescheduled \\
+\hline
+attendance & Per-session records: present, absent, excused, or no-show \\
+\hline
+ratings & Post-session peer ratings (1--5 scale) with optional text and a flagged field \\
+\hline
+reliability\_snapshots & Cached computed reliability scores for efficient retrieval \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+The schema enforces data integrity through foreign-key constraints, \texttt{UNIQUE} indexes on composite keys such as \texttt{(session\_id, user\_id)} in the attendance table, and \texttt{CHECK} constraints on enumerated columns such as session status and attendance status.
+
+\section{Reliability and Matching Design}
+The most distinctive feature of the application is its reliability-aware matching model. Rather than a black-box algorithm, the score was intentionally designed to be transparent and explainable. Three inputs are combined:
+\begin{itemize}
+    \item attendance rate $A$ (sessions attended divided by sessions as an active member),
+    \item average peer rating $R$ (mean of all received ratings on a 1--5 scale),
+    \item no-show penalty $P$ (a fixed deduction per confirmed no-show record).
+\end{itemize}
+
+The scoring formula is shown in~(1):
+\begin{equation}
+\text{Score} = \mathrm{clamp}\!\left(\mathrm{round}\!\left(A \times 70 + \tfrac{R}{5}\times 30 - P\right),\; 0,\; 100\right)
+\end{equation}
+
+The score is mapped to four human-readable tiers, each displayed with a contextual icon throughout the UI:
+
+\begin{itemize}
+    \item \textbf{Highly Reliable} ($\geq 90$) --- verified badge icon,
+    \item \textbf{Reliable} ($\geq 75$) --- thumbs-up icon,
+    \item \textbf{Mixed} ($\geq 50$) --- exclamation-circle icon,
+    \item \textbf{Low Reliability} ($< 50$) --- warning triangle icon,
+    \item \textbf{New} (no history) --- sparkle icon.
+\end{itemize}
+
+Group browse results are sorted by a computed match score that incorporates course overlap, availability overlap, study-style alignment, and the viewer's own reliability tier. Match reasons are surfaced on each group card so that students can evaluate fit at a glance before requesting to join.
+
+Abuse protections built into the rating system include:
+\begin{itemize}
+    \item users cannot rate themselves,
+    \item ratings are restricted to members who attended the same session (present status required),
+    \item a unique constraint prevents duplicate rater--ratee--session combinations,
+    \item a \texttt{flagged} field marks suspicious ratings for future moderation.
+\end{itemize}
+
+\section{API Design}
+The backend exposes REST-style endpoints organized by resource domain. Table~\ref{tab:api} lists the endpoints implemented in the prototype.
+
+\begin{table}[htbp]
+\caption{API Endpoints}
+\label{tab:api}
+\begin{center}
+\begin{tabular}{|c|>{\raggedright\arraybackslash}p{4.4cm}|}
+\hline
+\textbf{Method} & \textbf{Endpoint} \\
+\hline
+POST & /api/auth/register \\
+POST & /api/auth/login \\
+GET  & /api/auth/me \\
+\hline
+GET  & /api/users/me \\
+PUT  & /api/users/me \\
+POST & /api/users/me/availability \\
+DELETE & /api/users/me/availability/:id \\
+GET  & /api/users/:id/reliability \\
+\hline
+GET  & /api/groups \\
+POST & /api/groups \\
+GET  & /api/groups/mine \\
+GET  & /api/groups/:id \\
+PUT  & /api/groups/:id \\
+DELETE & /api/groups/:id \\
+POST & /api/groups/:id/join-request \\
+POST & /api/groups/:id/requests/:id/approve \\
+POST & /api/groups/:id/requests/:id/reject \\
+DELETE & /api/groups/:id/members/:id \\
+GET  & /api/groups/:id/student-matches \\
+POST & /api/groups/:id/invitations \\
+\hline
+GET  & /api/sessions/upcoming \\
+GET  & /api/groups/:id/sessions \\
+POST & /api/groups/:id/sessions \\
+GET  & /api/sessions/:id \\
+PATCH & /api/sessions/:id/start \\
+PATCH & /api/sessions/:id/complete \\
+PATCH & /api/sessions/:id/cancel \\
+PATCH & /api/sessions/:id/reschedule \\
+POST & /api/sessions/:id/check-in \\
+POST & /api/sessions/:id/attendance \\
+POST & /api/sessions/:id/ratings \\
+\hline
+GET  & /api/invitations \\
+PATCH & /api/invitations/:id/respond \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Application Workflow}
+A complete end-to-end workflow in the implemented system proceeds as follows:
+\begin{enumerate}
+    \item A student registers an account, selecting a role of Student or Teacher.
+    \item The student completes a profile: major, bio, study style, course list, and recurring availability blocks.
+    \item The student browses the group listing, which is sorted by computed match score and annotated with fit labels and match reasons.
+    \item The student submits a join request to a group. The group leader sees the request in the pending-requests panel on the group detail page.
+    \item The leader approves or rejects the request. Approved members gain access to the group's meeting link.
+    \item The leader schedules a session with a title, date, duration, location, and optional preparation notes.
+    \item When the session time arrives, the leader starts it, transitioning its status to active.
+    \item Active members navigate to the session detail page and self-check-in, recording a present attendance entry.
+    \item The leader completes the session, which automatically marks any member who did not check in as absent.
+    \item Members who were marked present can now rate one another on a 1--5 scale with optional written feedback.
+    \item Reliability scores are recomputed from the updated attendance and ratings and are reflected immediately in badges throughout the application.
+    \item Leaders can separately use the \textit{Find \& Invite Students} panel to surface matched students and send direct invitations, which recipients can accept or decline from their dashboard.
+\end{enumerate}
+
+\section{Implementation Details}
+
+\subsection{Frontend}
+The frontend is organized into page-level views and shared components. Key components include:
+\begin{itemize}
+    \item \texttt{AppHeader} --- navigation bar with a role-colored user pill (green for Student, orange for Teacher) and active-route highlighting.
+    \item \texttt{ReliabilityBadge} --- renders a tier label, numeric score, and contextual icon; used consistently across group cards, member lists, and match results.
+    \item \texttt{GroupCard} --- summarizes a group with a fit label, match reasons, map-pin location, and member count; groups the user has already joined are visually de-emphasized.
+\end{itemize}
+
+The dashboard adapts to user state: new users see a step-by-step onboarding checklist that auto-hides after completing all steps and viewing the completion state three times. The dashboard also displays an upcoming sessions panel sorted by scheduled date and a live-session alert banner when any of the user's groups has an active session.
+
+Group detail pages render two distinct layouts depending on the viewer's relationship to the group. The leader layout places the session scheduling form on the left and stacks members, invite, sessions, and pending requests on the right. The member layout places the sessions list on the left and the members list on the right, with no scheduling form or invite panel shown.
+
+\subsection{Backend}
+Session status transitions are enforced server-side. A session can only be started if its status is \texttt{scheduled} or \texttt{missed}, and it can only be completed if it is \texttt{active}. A reconciliation function runs on every group session list request and automatically promotes stale scheduled sessions to \texttt{missed} when their scheduled time has passed, ensuring the session history is always accurate without requiring a background process.
+
+The \texttt{/api/groups/mine} route joins the user's led and joined groups in a single query and annotates each row with an \texttt{isLeader} boolean, allowing the frontend to render the correct layout and labels without a follow-up request.
+
+\subsection{Reliability Computation}
+The reliability service computes scores on demand from live attendance and rating data:
+
+\begin{lstlisting}[language=JavaScript, caption={Core reliability scoring logic}]
+function calculateReliabilityScore(
+    attendanceRate, avgRating, noShows) {
+  const noShowPenalty = noShows * 10;
+  const score = Math.round(
+    (attendanceRate * 70) +
+    ((avgRating / 5) * 30) -
+    noShowPenalty
+  );
+  return Math.max(0, Math.min(100, score));
+}
+\end{lstlisting}
+
+Attendance carries 70\% of the weight because it is the primary observable signal of dependability. Peer ratings contribute the remaining 30\% as a qualitative component. Confirmed no-shows carry an explicit 10-point penalty each, so a pattern of absences can overcome an otherwise favorable rating average.
+
+\section{Outcomes}
+The project delivered a complete, demonstration-ready full-stack prototype. The main outcomes include:
+
+\begin{itemize}
+    \item A working JWT authentication and authorization system with role-aware access control.
+    \item A complete group management workflow: create, browse with match scoring, request, approve, and invite.
+    \item A full session lifecycle: schedule, start, self-check-in, complete, cancel, and reschedule.
+    \item A peer rating system constrained by session participation with a live-computed reliability score.
+    \item A consistent, icon-rich UI that reflects reliability tiers, group membership status, and session states throughout every view.
+    \item A contextual leadership model that removes the dedicated leader account role, making the system more flexible for real student use.
+\end{itemize}
+
+\section{Testing and Evaluation}
+Evaluation focused on scenario-based functional testing of core user flows and data constraint enforcement. The prototype was seeded with representative data including multiple users, groups of different formats, past completed sessions, and existing attendance and rating records to simulate a realistic demo environment.
+
+\begin{table}[htbp]
+\caption{Functional Testing Scenarios}
+\label{tab:testing}
+\begin{center}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{5.5cm}|>{\centering\arraybackslash}p{1.7cm}|}
+\hline
+\textbf{Scenario} & \textbf{Status} \\
+\hline
+User registration, login, and JWT issuance & Passed \\
+\hline
+Profile editing and availability management & Passed \\
+\hline
+Group creation with location and meeting link & Passed \\
+\hline
+Group browse, search, and match-score sorting & Passed \\
+\hline
+Join request submission and leader approval & Passed \\
+\hline
+Session scheduling, start, check-in, complete & Passed \\
+\hline
+Automatic absent marking on session completion & Passed \\
+\hline
+Peer rating with participation constraint & Passed \\
+\hline
+Reliability badge rendering by score tier & Passed \\
+\hline
+Student invitation via match results & Passed \\
+\hline
+Leader vs.\ member layout on group detail page & Passed \\
+\hline
+Role-based UI (Student green, Teacher orange) & Passed \\
+\hline
+\end{tabular}
+\end{center}
+\end{table}
+
+\section{Challenges}
+
+\subsection{Balancing Scope and Feasibility}
+A major challenge was keeping the project within a realistic semester scope. Matching logic, attendance tracking, role management, and rating moderation can each grow into substantial sub-projects. The system was therefore built in layers, prioritizing a working MVP before adding secondary features and UI polish.
+
+\subsection{Contextual vs.\ Account-Level Leadership}
+An early design question was whether group leadership should be a permanent account role or a per-group property. The final design removes the dedicated \texttt{leader} account role and makes any student who creates a group its leader automatically. This eliminated a category of access-control complexity and better reflects real-world behavior, where a student may lead one group while being a member in another.
+
+\subsection{Designing a Fair Reputation System}
+Designing a reliability model that is useful without being opaque required careful weighting. A score that is too simple may be inaccurate; one that is too complex becomes difficult to explain and justify. The final formula is transparent, weights attendance as the primary signal, and is constrained by participation rules that reduce the risk of score manipulation.
+
+\subsection{Preventing Rating Abuse}
+Any peer-rating feature introduces risks of spam, retaliation, or score inflation through collusion. The design addresses this through session-based eligibility checks, unique constraints on rater--ratee--session triples, and a \texttt{flagged} column available for future moderation workflows.
+
+\section{Future Work}
+While the core prototype is complete, several extensions would improve the application for a production deployment:
+\begin{itemize}
+    \item email notifications for join-request decisions, session reminders, and invitation responses,
+    \item dispute and moderation workflows for flagged ratings,
+    \item reliability trend charts and attendance history visualizations on the profile page,
+    \item fully mobile-optimized responsive layouts,
+    \item server-side pagination for large group and session lists,
+    \item automated integration and end-to-end test suites.
+\end{itemize}
+
+\section{LLM Usage}
+Large language model tools were used as development assistants throughout planning, implementation, and documentation. They were helpful for brainstorming architecture, generating boilerplate, debugging logic, and organizing code structure. All project decisions, scope trade-offs, feature prioritization, and correctness verification required manual reasoning and testing. LLMs accelerated development support tasks rather than replacing the need to understand the application.
+
+\section{Course Feedback}
+This course was effective in connecting foundational web concepts with a larger final project. The emphasis on modern tools --- Vue, Vite, Express, GitHub, and SQLite-backed application design --- produced a practical and portfolio-ready result. One improvement for future offerings would be an earlier intermediate checkpoint focused specifically on deployment readiness and full end-to-end integration. This would help students identify integration risks sooner and arrive at the final demo with less last-minute pressure.
+
+\section{Conclusion}
+This project demonstrates the design and complete prototype implementation of a reliability-aware study group matcher web application for college students. The system combines conventional study-group management features with a distinct reputation component that improves the quality of group matching. The finished prototype covers the full lifecycle from registration through peer rating, uses a clean role model that separates account-level identity from group-level leadership, and presents reliability information consistently and legibly throughout the interface. The work confirms that a focused, well-scoped feature set can be fully implemented within a single semester using modern JavaScript tools and provides a solid foundation for a more complete production application in future iterations.
+
+\begin{thebibliography}{00}
+\bibitem{b1} Vue.js Documentation. Available: \url{https://vuejs.org}
+\bibitem{b2} Vite Documentation. Available: \url{https://vitejs.dev}
+\bibitem{b3} Node.js Documentation. Available: \url{https://nodejs.org}
+\bibitem{b4} Express Documentation. Available: \url{https://expressjs.com}
+\bibitem{b5} SQLite Documentation. Available: \url{https://sqlite.org}
+\bibitem{b6} Pinia State Management. Available: \url{https://pinia.vuejs.org}
+\bibitem{b7} Vue Router Documentation. Available: \url{https://router.vuejs.org}
+\bibitem{b8} Heroicons. Available: \url{https://heroicons.com}
+\bibitem{b9} JSON Web Tokens. Available: \url{https://jwt.io}
+\end{thebibliography}
+
+\end{document}
