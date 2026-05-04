@@ -127,27 +127,34 @@ router.get('/', optionalAuth, async (req, res, next) => {
 
 router.get('/mine', requireAuth, async (req, res, next) => {
   try {
-    const groups = await all(
-      `SELECT DISTINCT
+    const rows = await all(
+      `SELECT
          g.id,
          g.title,
          g.course_code,
          g.meeting_format,
-         g.location
+         g.location,
+         g.capacity,
+         g.leader_id,
+         COUNT(CASE WHEN gm.status = 'active' THEN gm.id END) AS active_member_count
        FROM study_groups g
-       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.status = 'active'
-       WHERE g.leader_id = ? OR gm.user_id = ?
+       LEFT JOIN group_members gm ON gm.group_id = g.id
+       WHERE g.leader_id = ? OR EXISTS (
+         SELECT 1 FROM group_members m WHERE m.group_id = g.id AND m.user_id = ? AND m.status = 'active'
+       )
+       GROUP BY g.id
        ORDER BY g.created_at DESC`,
       [req.user.id, req.user.id]
     );
 
+    const groups = rows.map(g => ({ ...g, isLeader: g.leader_id === req.user.id }));
     return res.json({ success: true, data: { groups } });
   } catch (error) {
     return next(error);
   }
 });
 
-router.post('/', requireAuth, requireRole('leader', 'admin'), async (req, res, next) => {
+router.post('/', requireAuth, async (req, res, next) => {
   try {
     const title = String(req.body.title || '').trim();
     const courseCode = String(req.body.courseCode || '').trim();
@@ -295,7 +302,7 @@ router.get('/:id', optionalAuth, async (req, res, next) => {
 router.put('/:id', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can edit this group.' });
     }
 
@@ -336,7 +343,7 @@ router.put('/:id', requireAuth, async (req, res, next) => {
 router.delete('/:id', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can delete this group.' });
     }
 
@@ -400,7 +407,7 @@ router.post('/:id/join-request', requireAuth, async (req, res, next) => {
 router.get('/:id/requests', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can review requests.' });
     }
 
@@ -422,7 +429,7 @@ router.get('/:id/requests', requireAuth, async (req, res, next) => {
 router.post('/:id/requests/:requestId/approve', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can approve requests.' });
     }
 
@@ -461,7 +468,7 @@ router.post('/:id/requests/:requestId/approve', requireAuth, async (req, res, ne
 router.post('/:id/requests/:requestId/reject', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can reject requests.' });
     }
 
@@ -481,7 +488,7 @@ router.post('/:id/requests/:requestId/reject', requireAuth, async (req, res, nex
 router.delete('/:id/members/:memberId', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can remove members.' });
     }
 
@@ -510,7 +517,7 @@ router.delete('/:id/members/:memberId', requireAuth, async (req, res, next) => {
 router.get('/:id/student-matches', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can view student matches.' });
     }
 
@@ -606,7 +613,7 @@ router.get('/:id/student-matches', requireAuth, async (req, res, next) => {
 router.post('/:id/invitations', requireAuth, async (req, res, next) => {
   try {
     const ownsGroup = await isGroupLeader(req.params.id, req.user.id);
-    if (!ownsGroup && req.user.role !== 'admin') {
+    if (!ownsGroup && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can send invitations.' });
     }
 

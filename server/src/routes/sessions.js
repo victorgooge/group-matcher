@@ -34,6 +34,28 @@ async function reconcileSessionStatuses(groupId) {
   );
 }
 
+// Upcoming + active sessions across all of the current user's groups.
+router.get('/sessions/upcoming', requireAuth, async (req, res, next) => {
+  try {
+    const sessions = await all(
+      `SELECT DISTINCT
+         s.id, s.title, s.scheduled_at, s.duration_minutes, s.location, s.status,
+         g.id AS group_id, g.title AS group_title
+       FROM sessions s
+       JOIN study_groups g ON g.id = s.group_id
+       LEFT JOIN group_members gm ON gm.group_id = g.id AND gm.status = 'active'
+       WHERE (g.leader_id = ? OR gm.user_id = ?)
+         AND s.status IN ('scheduled', 'active')
+       ORDER BY s.scheduled_at ASC
+       LIMIT 10`,
+      [req.user.id, req.user.id]
+    );
+    return res.json({ success: true, data: { sessions } });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 // List sessions for a group — reconciles stale statuses first.
 router.get('/groups/:id/sessions', async (req, res, next) => {
   try {
@@ -61,7 +83,7 @@ router.post('/groups/:id/sessions', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Group not found.' });
     }
 
-    if (Number(group.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(group.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can create sessions.' });
     }
 
@@ -133,7 +155,7 @@ router.get('/sessions/:id', requireAuth, async (req, res, next) => {
     );
 
     const isLeader = Number(session.leader_id) === Number(req.user.id);
-    const canManageAttendance = isLeader || req.user.role === 'admin';
+    const canManageAttendance = isLeader || req.user.role === 'teacher';
     const canRate = session.status === 'completed' && presentUserIds.has(Number(req.user.id));
 
     const myAttendance = attendance.find((e) => Number(e.user_id) === Number(req.user.id));
@@ -188,7 +210,7 @@ router.patch('/sessions/:id/start', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Session not found.' });
     }
 
-    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can start sessions.' });
     }
 
@@ -215,7 +237,7 @@ router.patch('/sessions/:id/complete', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Session not found.' });
     }
 
-    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can complete sessions.' });
     }
 
@@ -260,7 +282,7 @@ router.patch('/sessions/:id/cancel', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Session not found.' });
     }
 
-    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can cancel sessions.' });
     }
 
@@ -287,7 +309,7 @@ router.patch('/sessions/:id/reschedule', requireAuth, async (req, res, next) => 
       return res.status(404).json({ success: false, message: 'Session not found.' });
     }
 
-    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can reschedule sessions.' });
     }
 
@@ -379,7 +401,7 @@ router.post('/sessions/:id/attendance', requireAuth, async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Session not found.' });
     }
 
-    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'admin') {
+    if (Number(session.leader_id) !== Number(req.user.id) && req.user.role !== 'teacher') {
       return res.status(403).json({ success: false, message: 'Only the group leader can mark attendance.' });
     }
 

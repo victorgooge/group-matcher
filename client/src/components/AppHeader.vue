@@ -82,8 +82,7 @@ const currentPage = computed(() => {
 });
 
 function formatRoleLabel(role) {
-  if (!role) return 'Member';
-  return String(role).charAt(0).toUpperCase() + String(role).slice(1);
+  return role === 'teacher' ? 'Teacher' : 'Student';
 }
 
 async function logout() {

@@ -3,7 +3,7 @@
     <div class="card">
       <div class="page-header__content">
         <p class="eyebrow">Account</p>
-        <h1 class="page-title">Profile</h1>
+        <h1 class="page-title"><UserIcon class="heading-icon" /> Profile</h1>
         <p class="muted tight">Keep the basics current so your matches are easier to trust.</p>
       </div>
       <form class="form" @submit.prevent="saveProfile">
@@ -108,7 +108,7 @@
 
       <div class="card">
         <div class="section-header__content">
-          <h2 class="section-title">Availability</h2>
+          <h2 class="section-title"><CalendarDaysIcon class="heading-icon heading-icon--sm" /> Availability</h2>
           <p class="muted tight">Add the time windows when you can reliably meet.</p>
         </div>
         <form class="form" @submit.prevent="addAvailability">
@@ -164,6 +164,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
+import { CalendarDaysIcon, UserIcon } from '@heroicons/vue/24/outline';
 import ReliabilityBadge from '../components/ReliabilityBadge.vue';
 import { usersApi } from '../services/api';
 

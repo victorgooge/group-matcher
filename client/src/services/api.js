@@ -1,4 +1,4 @@
-const API_BASE = '/api';
+const API_BASE = `${import.meta.env.VITE_API_BASE_URL || ''}/api`;
 
 export async function apiFetch(path, options = {}) {
   const token = localStorage.getItem('token');
@@ -61,6 +61,7 @@ export const groupsApi = {
 };
 
 export const sessionsApi = {
+  upcoming: () => apiFetch('/sessions/upcoming'),
   create: (groupId, body) => apiFetch(`/groups/${groupId}/sessions`, { method: 'POST', body: JSON.stringify(body) }),
   get: (sessionId) => apiFetch(`/sessions/${sessionId}`),
   start: (sessionId) => apiFetch(`/sessions/${sessionId}/start`, { method: 'PATCH' }),

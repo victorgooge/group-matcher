@@ -21,14 +21,14 @@ async function seed() {
 
   const passwordHash = await bcrypt.hash('Password123!', 10);
 
-  // Users: 1 leader, 3 students, 1 admin
+  // Users: 4 students (one also leads groups), 1 teacher
   await run(
     `INSERT INTO users (name, email, password_hash, role) VALUES
-     ('Alex Leader', 'leader1@example.com', ?, 'leader'),
+     ('Alex Rivera', 'alex@example.com', ?, 'student'),
      ('Jamie Student', 'student1@example.com', ?, 'student'),
      ('Taylor Student', 'student2@example.com', ?, 'student'),
      ('Jordan Student', 'student3@example.com', ?, 'student'),
-     ('Morgan Admin', 'admin1@example.com', ?, 'admin')`,
+     ('Morgan Teacher', 'teacher@example.com', ?, 'teacher')`,
     [passwordHash, passwordHash, passwordHash, passwordHash, passwordHash]
   );
 
@@ -38,7 +38,7 @@ async function seed() {
     (2, 'Computer Science', 'Looking for consistent teammates for frontend and backend labs. Reliable and prepared.', 'Problem-solving', '["CSC 4370","MATH 2215"]', 4, 0),
     (3, 'Computer Science', 'Prefers collaborative whiteboard sessions and accountability check-ins.', 'Discussion-heavy', '["CSC 4370","CSC 2720"]', 6, 1),
     (4, 'Information Technology', 'New to the group matching system. Looking for a CSC 4370 group before the final.', 'Problem-solving', '["CSC 4370","CSC 2310"]', 4, 1),
-    (5, 'Information Systems', 'Optional admin demo account.', 'Mixed', '["CSC 4370"]', 4, 0);
+    (5, 'Information Systems', 'Teacher account for platform oversight.', 'Mixed', '["CSC 4370"]', 4, 0);
 
     INSERT INTO availability_blocks (user_id, day_of_week, start_time, end_time) VALUES
     (1, 'Monday', '15:00', '18:00'),

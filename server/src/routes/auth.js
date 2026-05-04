@@ -29,8 +29,8 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Password must be at least 8 characters.' });
     }
 
-    if (!['student', 'leader'].includes(role)) {
-      return res.status(400).json({ success: false, message: 'Role must be student or leader.' });
+    if (!['student', 'teacher'].includes(role)) {
+      return res.status(400).json({ success: false, message: 'Role must be student or teacher.' });
     }
 
     const existingUser = await get(`SELECT id FROM users WHERE email = ?`, [normalizedEmail]);
@@ -109,6 +109,9 @@ router.post('/logout', (_req, res) => {
 router.get('/me', requireAuth, async (req, res, next) => {
   try {
     const user = await get(`SELECT id, name, email, role FROM users WHERE id = ?`, [req.user.id]);
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Session is no longer valid. Please sign in again.' });
+    }
     return res.json({ success: true, data: { user } });
   } catch (error) {
     return next(error);

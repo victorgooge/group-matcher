@@ -8,7 +8,7 @@
           <h1 class="page-title">{{ details.group.title }}</h1>
           <p class="muted tight">
             {{ details.group.meetingFormat }} &middot;
-            {{ details.group.location || details.group.meetingLink || 'Location TBD' }} &middot;
+            {{ details.group.location || 'Location TBD' }} &middot;
             Led by {{ details.group.leader.name }}
           </p>
           <div class="chip-row" style="margin-top:0.5rem">
@@ -19,10 +19,12 @@
         </div>
 
         <div class="page-header__actions">
-          <RouterLink v-if="details.group.isLeader" class="button secondary" :to="`/groups/${details.group.id}/edit`">
+          <RouterLink v-if="details.group.isLeader" class="button secondary" :to="`/groups/${details.group.id}/edit`" style="display:inline-flex;align-items:center;gap:0.35rem">
+            <PencilSquareIcon style="width:1em;height:1em" />
             Edit Group
           </RouterLink>
-          <button v-if="details.group.isLeader" class="button secondary" type="button" @click="deleteGroup">
+          <button v-if="details.group.isLeader" class="button danger" type="button" @click="deleteGroup" style="display:inline-flex;align-items:center;gap:0.35rem">
+            <TrashIcon style="width:1em;height:1em" />
             Delete
           </button>
           <button v-if="canRequestJoin" class="button" type="button" @click="requestJoin">
@@ -32,6 +34,13 @@
       </div>
 
       <p class="muted" style="margin-top:0.25rem">{{ details.group.description }}</p>
+
+      <div v-if="details.group.meetingLink && (details.group.isMember || details.group.isLeader)" class="meeting-link-row">
+        <span class="muted" style="font-size:0.88rem">Meeting link:</span>
+        <a :href="details.group.meetingLink" target="_blank" rel="noopener noreferrer" class="meeting-link">
+          {{ details.group.meetingLink }}
+        </a>
+      </div>
 
       <div v-if="statusBannerMessage" class="status-banner" :data-status="statusBannerTone">
         <strong>{{ statusBannerTitle }}</strong>
@@ -50,19 +59,12 @@
       </div>
     </div>
 
-    <div class="grid grid-2">
-      <!-- Sessions -->
+    <!-- Leader layout: form left, everything else right -->
+    <div v-if="details.group.isLeader" class="grid grid-2" style="align-items:start">
+      <!-- Left: schedule form -->
       <div class="card">
-        <div class="section-header">
-          <div class="section-header__content">
-            <h2 class="section-title">Sessions</h2>
-            <p class="muted tight">Past and upcoming meetings for this group.</p>
-          </div>
-        </div>
-
-        <!-- Leader: create session form -->
-        <form v-if="details.group.isLeader" class="form surface-muted" @submit.prevent="createSession">
-          <p style="margin:0;font-weight:700;font-size:0.95rem">Schedule New Session</p>
+        <form class="form" @submit.prevent="createSession">
+          <h2 class="section-title" style="margin:0">Schedule New Session</h2>
           <label>
             Title
             <input v-model="sessionForm.title" type="text" placeholder="e.g. Final Exam Review" required />
@@ -87,18 +89,92 @@
           </label>
           <button class="button secondary" type="submit">Create Session</button>
         </form>
+      </div>
 
-        <!-- Session list -->
-        <div class="table-like">
-          <div v-for="session in details.sessions" :key="session.id" class="table-row">
-            <div class="table-row__content">
-              <div><strong>{{ session.title }}</strong></div>
-              <div class="muted" style="font-size:0.9rem">{{ formatDate(session.scheduled_at) }}</div>
+      <!-- Right: Members + Invite + Sessions + Pending -->
+      <div class="stack-md">
+        <div class="card">
+          <div class="section-header__content" style="margin-bottom:0.75rem">
+            <h2 class="section-title"><UserGroupIcon class="heading-icon--sm" /> Members</h2>
+            <p class="muted tight">Current group members and their reliability.</p>
+          </div>
+          <div class="table-like">
+            <div v-for="member in details.members" :key="member.id" class="table-row">
+              <div class="table-row__content">
+                <div><strong>{{ member.name }}</strong></div>
+                <div class="muted" style="font-size:0.88rem">{{ formatRoleLabel(member.role) }}</div>
+              </div>
+              <div class="inline-actions">
+                <ReliabilityBadge :score="member.reliability.score" />
+                <span v-if="member.reliability.noShowCount > 0" class="pill" style="font-size:0.85rem;color:var(--danger)">
+                  {{ member.reliability.noShowCount }} no-show{{ member.reliability.noShowCount !== 1 ? 's' : '' }}
+                </span>
+                <button
+                  v-if="member.id !== auth.user?.id"
+                  class="button link"
+                  style="font-size:0.88rem"
+                  type="button"
+                  @click="removeMember(member.id)"
+                >
+                  Remove
+                </button>
+              </div>
             </div>
-            <div class="inline-actions">
-              <span class="status-tag" :data-status="session.status">{{ sessionStatusLabel(session.status) }}</span>
-              <!-- Leader session controls -->
-              <template v-if="details.group.isLeader">
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-header">
+            <div class="section-header__content">
+              <h2 class="section-title">Find &amp; Invite Students</h2>
+              <p class="muted tight">Students matched by course, availability, and reliability.</p>
+            </div>
+            <button class="button secondary" type="button" @click="loadMatches" :disabled="matchesLoading">
+              {{ matchesLoading ? 'Loading...' : matchesLoaded ? 'Refresh' : 'Find Matches' }}
+            </button>
+          </div>
+          <div v-if="matchesLoaded" class="table-like">
+            <div v-for="match in studentMatches" :key="match.id" class="table-row">
+              <div class="table-row__content">
+                <div>
+                  <strong>{{ match.name }}</strong>
+                  <span v-if="match.isLookingForGroup" class="pill" style="margin-left:0.5rem;font-size:0.8rem;background:rgba(33,95,82,0.1);color:var(--primary-dark)">Looking</span>
+                </div>
+                <div class="muted" style="font-size:0.88rem">{{ match.major || 'No major listed' }}</div>
+                <div class="chip-row" style="margin-top:0.3rem">
+                  <span v-for="reason in match.matchReasons" :key="reason" class="pill" style="font-size:0.8rem">{{ reason }}</span>
+                </div>
+              </div>
+              <div class="inline-actions">
+                <ReliabilityBadge :score="match.reliability.score" />
+                <button
+                  class="button secondary"
+                  style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem"
+                  type="button"
+                  :disabled="sentInvites.has(match.id)"
+                  @click="inviteStudent(match.id)"
+                >
+                  {{ sentInvites.has(match.id) ? 'Invited' : 'Invite' }}
+                </button>
+              </div>
+            </div>
+            <p v-if="!studentMatches.length" class="empty-state">No additional students to invite right now.</p>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="section-header__content" style="margin-bottom:0.75rem">
+            <h2 class="section-title"><CalendarDaysIcon class="heading-icon--sm" /> Sessions</h2>
+            <p class="muted tight">Past and upcoming meetings for this group.</p>
+          </div>
+          <div class="table-like">
+            <div v-for="session in details.sessions" :key="session.id" class="table-row">
+              <div class="table-row__content">
+                <div><strong>{{ session.title }}</strong></div>
+                <div class="muted" style="font-size:0.9rem">{{ formatDate(session.scheduled_at) }}</div>
+              </div>
+              <div class="inline-actions">
+                <span class="status-tag" :data-status="session.status">{{ sessionStatusLabel(session.status) }}</span>
                 <button
                   v-if="session.status === 'scheduled' || session.status === 'missed'"
                   class="button secondary"
@@ -125,7 +201,57 @@
                 >
                   Cancel
                 </button>
-              </template>
+                <RouterLink
+                  class="button secondary"
+                  style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem"
+                  :to="`/groups/${details.group.id}/sessions/${session.id}`"
+                >
+                  Open
+                </RouterLink>
+              </div>
+            </div>
+            <p v-if="!details.sessions.length" class="empty-state">No sessions scheduled yet.</p>
+          </div>
+        </div>
+
+        <div class="card" v-if="details.pendingRequests.length">
+          <div class="section-header__content" style="margin-bottom:0.75rem">
+            <h2 class="section-title">Pending Join Requests</h2>
+            <p class="muted tight">{{ details.pendingRequests.length }} request{{ details.pendingRequests.length !== 1 ? 's' : '' }} waiting for a decision.</p>
+          </div>
+          <div class="table-like">
+            <div v-for="request in details.pendingRequests" :key="request.id" class="table-row request-row" data-status="pending">
+              <div class="table-row__content">
+                <div><strong>{{ request.name }}</strong></div>
+                <div class="muted" style="font-size:0.88rem">{{ request.email }}</div>
+              </div>
+              <span class="status-tag" data-status="pending">Pending</span>
+              <div class="inline-actions">
+                <button class="button secondary" type="button" @click="approveRequest(request.id)">Approve</button>
+                <button class="button link" type="button" @click="rejectRequest(request.id)">Decline</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Member/visitor layout: sessions left, members right -->
+    <div v-else class="grid grid-2" style="align-items:start">
+      <!-- Left: Sessions -->
+      <div class="card">
+        <div class="section-header__content" style="margin-bottom:0.75rem">
+          <h2 class="section-title">Sessions</h2>
+          <p class="muted tight">Past and upcoming meetings for this group.</p>
+        </div>
+        <div class="table-like">
+          <div v-for="session in details.sessions" :key="session.id" class="table-row">
+            <div class="table-row__content">
+              <div><strong>{{ session.title }}</strong></div>
+              <div class="muted" style="font-size:0.9rem">{{ formatDate(session.scheduled_at) }}</div>
+            </div>
+            <div class="inline-actions">
+              <span class="status-tag" :data-status="session.status">{{ sessionStatusLabel(session.status) }}</span>
               <RouterLink
                 class="button secondary"
                 style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem"
@@ -139,9 +265,9 @@
         </div>
       </div>
 
-      <!-- Members -->
+      <!-- Right: Members -->
       <div class="card">
-        <div class="section-header__content">
+        <div class="section-header__content" style="margin-bottom:0.75rem">
           <h2 class="section-title">Members</h2>
           <p class="muted tight">Current group members and their reliability.</p>
         </div>
@@ -149,87 +275,16 @@
           <div v-for="member in details.members" :key="member.id" class="table-row">
             <div class="table-row__content">
               <div><strong>{{ member.name }}</strong></div>
-              <div class="muted" style="font-size:0.88rem">{{ member.role }}</div>
+              <div class="muted" style="font-size:0.88rem">{{ formatRoleLabel(member.role) }}</div>
             </div>
             <div class="inline-actions">
               <ReliabilityBadge :score="member.reliability.score" />
               <span v-if="member.reliability.noShowCount > 0" class="pill" style="font-size:0.85rem;color:var(--danger)">
                 {{ member.reliability.noShowCount }} no-show{{ member.reliability.noShowCount !== 1 ? 's' : '' }}
               </span>
-              <button
-                v-if="details.group.isLeader && member.id !== auth.user?.id"
-                class="button link"
-                style="font-size:0.88rem"
-                type="button"
-                @click="removeMember(member.id)"
-              >
-                Remove
-              </button>
             </div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Pending join requests (leader only) -->
-    <div class="card" v-if="details.group.isLeader && details.pendingRequests.length">
-      <div class="section-header__content">
-        <h2 class="section-title">Pending Join Requests</h2>
-        <p class="muted tight">{{ details.pendingRequests.length }} request{{ details.pendingRequests.length !== 1 ? 's' : '' }} waiting for a decision.</p>
-      </div>
-      <div class="table-like">
-        <div v-for="request in details.pendingRequests" :key="request.id" class="table-row request-row" data-status="pending">
-          <div class="table-row__content">
-            <div><strong>{{ request.name }}</strong></div>
-            <div class="muted" style="font-size:0.88rem">{{ request.email }}</div>
-          </div>
-          <span class="status-tag" data-status="pending">Pending</span>
-          <div class="inline-actions">
-            <button class="button secondary" type="button" @click="approveRequest(request.id)">Approve</button>
-            <button class="button link" type="button" @click="rejectRequest(request.id)">Decline</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Invite matching students (leader only) -->
-    <div class="card" v-if="details.group.isLeader">
-      <div class="section-header">
-        <div class="section-header__content">
-          <h2 class="section-title">Find &amp; Invite Students</h2>
-          <p class="muted tight">Students matched by course, availability, and reliability.</p>
-        </div>
-        <button class="button secondary" type="button" @click="loadMatches" :disabled="matchesLoading">
-          {{ matchesLoading ? 'Loading...' : matchesLoaded ? 'Refresh' : 'Find Matches' }}
-        </button>
-      </div>
-
-      <div v-if="matchesLoaded" class="table-like">
-        <div v-for="match in studentMatches" :key="match.id" class="table-row">
-          <div class="table-row__content">
-            <div>
-              <strong>{{ match.name }}</strong>
-              <span v-if="match.isLookingForGroup" class="pill" style="margin-left:0.5rem;font-size:0.8rem;background:rgba(33,95,82,0.1);color:var(--primary-dark)">Looking</span>
-            </div>
-            <div class="muted" style="font-size:0.88rem">{{ match.major || 'No major listed' }}</div>
-            <div class="chip-row" style="margin-top:0.3rem">
-              <span v-for="reason in match.matchReasons" :key="reason" class="pill" style="font-size:0.8rem">{{ reason }}</span>
-            </div>
-          </div>
-          <div class="inline-actions">
-            <ReliabilityBadge :score="match.reliability.score" />
-            <button
-              class="button secondary"
-              style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem"
-              type="button"
-              :disabled="sentInvites.has(match.id)"
-              @click="inviteStudent(match.id)"
-            >
-              {{ sentInvites.has(match.id) ? 'Invited' : 'Invite' }}
-            </button>
-          </div>
-        </div>
-        <p v-if="!studentMatches.length" class="empty-state">No additional students to invite right now.</p>
       </div>
     </div>
 
@@ -242,6 +297,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
+import { CalendarDaysIcon, PencilSquareIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline';
 import ReliabilityBadge from '../components/ReliabilityBadge.vue';
 import { useAuthStore } from '../stores/auth';
 import { groupsApi, sessionsApi } from '../services/api';
@@ -352,6 +408,10 @@ function sessionStatusLabel(status) {
     missed: 'Missed'
   };
   return labels[status] ?? status;
+}
+
+function formatRoleLabel(role) {
+  return role === 'teacher' ? 'Teacher' : 'Student';
 }
 
 function showMessage(msg) {

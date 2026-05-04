@@ -1,5 +1,5 @@
 <template>
-  <article class="card group-card">
+  <article class="card group-card" :class="{ 'group-card--member': group.isMember }">
     <div class="section-header">
       <div class="section-header__content">
         <p class="eyebrow">{{ group.courseCode }}</p>
@@ -16,7 +16,7 @@
             {{ groupStateLabel }}
           </span>
           <span
-            v-if="fitLabel"
+            v-if="fitLabel && !group.isMember"
             class="pill pill--status"
             :data-status="fitTone"
           >
@@ -24,25 +24,24 @@
           </span>
         </div>
       </div>
-      <ReliabilityBadge :score="group.matchScore ?? null" />
+      <ReliabilityBadge v-if="!group.isMember" :score="group.matchScore ?? null" />
     </div>
 
-    <div v-if="fitSummary" class="status-banner" :data-status="fitTone">
+    <div v-if="fitSummary && !group.isMember" class="status-banner" :data-status="fitTone">
       <strong>{{ fitTitle }}</strong>
       <span>{{ fitSummary }}</span>
     </div>
 
     <p class="muted">{{ group.description }}</p>
 
-    <div v-if="group.matchReasons?.length" class="chip-row">
+    <div v-if="group.matchReasons?.length && !group.isMember" class="chip-row">
       <span v-for="reason in group.matchReasons" :key="reason" class="pill">{{ reason }}</span>
     </div>
 
     <div class="section-header">
       <div class="group-card__meta">
-        <div class="pill">{{ group.location || group.meetingLink || 'Location shared after approval' }}</div>
-        <div class="capacity-meter" :title="`${fillPercent}% full`">
-          <span :style="{ width: `${fillPercent}%` }" />
+        <div class="pill">
+          <MapPinIcon style="width:0.85em;height:0.85em;vertical-align:-0.1em;margin-right:0.25em;display:inline-block" />{{ group.location || group.meetingLink || 'Location shared after approval' }}
         </div>
       </div>
       <RouterLink class="button secondary" :to="`/groups/${group.id}`">View Group</RouterLink>
@@ -53,6 +52,7 @@
 <script setup>
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
+import { MapPinIcon } from '@heroicons/vue/24/outline';
 import ReliabilityBadge from './ReliabilityBadge.vue';
 
 const props = defineProps({

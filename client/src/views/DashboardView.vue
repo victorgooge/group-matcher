@@ -12,8 +12,8 @@
         </div>
       </div>
 
-      <div class="status-banner" :data-status="onboardingTone">
-        <strong>{{ onboardingLabel }}</strong>
+      <div v-if="showOnboarding" class="status-banner" :data-status="onboardingTone">
+        <strong><CheckIcon v-if="onboardingProgress >= 100" style="width:1em;height:1em;vertical-align:-0.15em;margin-right:0.2em" />{{ onboardingLabel }}</strong>
         <span>{{ onboardingMessage }}</span>
         <div class="progress-track" aria-hidden="true" style="margin-top:0.5rem">
           <span :style="{ width: `${onboardingProgress}%` }" />
@@ -25,8 +25,8 @@
 
       <div class="metric-grid">
         <div class="metric-card metric-card--soft">
-          <strong>{{ formatRoleLabel(dashboard.user.role) }}</strong>
-          <span>Account role</span>
+          <strong>{{ ledGroups.length }}</strong>
+          <span>Groups led</span>
         </div>
         <div class="metric-card metric-card--soft">
           <strong>{{ dashboard.profile.courses.length || 0 }}</strong>
@@ -73,7 +73,40 @@
       </div>
     </div>
 
-    <div class="grid grid-2" v-if="dashboard">
+    <!-- Live session alert -->
+    <div v-if="liveSessions.length" class="status-banner" data-status="active">
+      <strong><span style="display:inline-block;width:0.55em;height:0.55em;border-radius:50%;background:#ef4444;margin-right:0.4em;vertical-align:0.05em;animation:liveDot 1.4s ease-in-out infinite"></span>{{ liveSessions.length === 1 ? 'A session is live right now' : `${liveSessions.length} sessions are live right now` }}</strong>
+      <span>{{ liveSessions[0].group_title }} — {{ liveSessions[0].title }}</span>
+      <div class="inline-actions" style="margin-top:0.5rem">
+        <RouterLink class="button" :to="`/groups/${liveSessions[0].group_id}/sessions/${liveSessions[0].id}`">Check In Now</RouterLink>
+      </div>
+    </div>
+
+    <!-- Upcoming sessions -->
+    <div class="card" v-if="dashboard && scheduledSessions.length">
+      <div class="section-header__content">
+        <h2 class="section-title"><CalendarDaysIcon class="heading-icon heading-icon--sm" /> Upcoming Sessions</h2>
+        <p class="muted tight">Sessions scheduled across your groups.</p>
+      </div>
+      <div class="table-like">
+        <div v-for="session in scheduledSessions" :key="session.id" class="table-row table-row--clickable"
+          @click="router.push(`/groups/${session.group_id}/sessions/${session.id}`)"
+          role="link" tabindex="0"
+          @keydown.enter="router.push(`/groups/${session.group_id}/sessions/${session.id}`)">
+          <div class="table-row__content">
+            <strong>{{ session.title }}</strong>
+            <span class="muted" style="font-size:0.88rem">{{ session.group_title }} &middot; {{ formatSessionDate(session.scheduled_at) }}</span>
+          </div>
+          <div class="inline-actions">
+            <span class="muted" style="font-size:0.85rem">{{ session.duration_minutes }} min</span>
+            <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="`/groups/${session.group_id}/sessions/${session.id}`">View</RouterLink>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Layout with suggestions: two-column -->
+    <div class="grid grid-2" style="align-items: start" v-if="dashboard && suggestedGroups.length">
       <!-- Suggested groups -->
       <div class="card">
         <div class="section-header">
@@ -85,72 +118,198 @@
         </div>
         <div class="list">
           <GroupCard v-for="group in suggestedGroups" :key="group.id" :group="group" />
-          <p v-if="!suggestedGroups.length" class="empty-state">
-            Add courses and availability in your profile to get suggestions.
-          </p>
         </div>
       </div>
 
-      <!-- Reliability snapshot -->
-      <div class="card">
-        <div class="section-header__content">
-          <h2 class="section-title">Your Reliability</h2>
-          <p class="muted tight">Based on completed session attendance and peer ratings.</p>
+      <!-- Right column stack -->
+      <div class="stack-md">
+        <!-- Reliability snapshot -->
+        <div class="card">
+          <div class="section-header__content">
+            <h2 class="section-title">Your Reliability</h2>
+            <p class="muted tight">Based on completed session attendance and peer ratings.</p>
+          </div>
+          <ReliabilityBadge :score="dashboard.reliability.score" />
+          <div class="metric-grid" style="margin-top:0.75rem">
+            <div class="metric-card">
+              <strong>{{ Math.round((dashboard.reliability.attendanceRate ?? 0) * 100) }}%</strong>
+              <span>Attendance rate</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.peerRatingAverage != null ? Number(dashboard.reliability.peerRatingAverage).toFixed(1) : '—' }}</strong>
+              <span>Avg peer rating</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.noShowCount }}</strong>
+              <span>No-shows</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.ratingCount }}</strong>
+              <span>Ratings received</span>
+            </div>
+          </div>
+          <p class="muted tight" style="font-size:0.92rem">{{ reliabilitySummary }}</p>
         </div>
-        <ReliabilityBadge :score="dashboard.reliability.score" />
-        <div class="metric-grid" style="margin-top:0.75rem">
-          <div class="metric-card">
-            <strong>{{ Math.round((dashboard.reliability.attendanceRate ?? 0) * 100) }}%</strong>
-            <span>Attendance rate</span>
+
+        <!-- Your groups -->
+        <div class="card">
+          <div class="section-header">
+            <div class="section-header__content">
+              <h2 class="section-title">Your Groups <UserGroupIcon class="heading-icon heading-icon--sm" /> <span class="group-count-badge">{{ myGroups.length }}</span></h2>
+            </div>
+            <RouterLink v-if="myGroups.length >= 3" class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" to="/my-groups">See All</RouterLink>
           </div>
-          <div class="metric-card">
-            <strong>{{ dashboard.reliability.peerRatingAverage != null ? Number(dashboard.reliability.peerRatingAverage).toFixed(1) : '—' }}</strong>
-            <span>Avg peer rating</span>
+
+          <template v-if="ledGroups.length">
+            <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.25rem;color:#1d4ed8">▾ Led by You <span style="opacity:0.7">(Leader)</span> <span style="opacity:0.55">· {{ ledGroups.length }}</span></p>
+            <div class="table-like">
+              <div v-for="group in ledGroups.slice(0, 3)" :key="group.id" class="table-row table-row--clickable" @click="router.push(`/groups/${group.id}`)" role="link" tabindex="0" @keydown.enter="router.push(`/groups/${group.id}`)">
+                <div class="table-row__content">
+                  <strong>{{ group.title }}</strong>
+                  <span class="muted" style="font-size:0.88rem">{{ group.course_code }} &middot; {{ group.meeting_format }} &middot; {{ group.active_member_count ?? 0 }}/{{ group.capacity }} members</span>
+                  <span v-if="group.location" class="muted" style="font-size:0.83rem;display:flex;align-items:center;gap:0.2rem"><MapPinIcon style="width:0.85em;height:0.85em;flex-shrink:0" />{{ group.location }}</span>
+                </div>
+                <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="`/groups/${group.id}`">Go</RouterLink>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="joinedGroups.length">
+            <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.75rem;margin-bottom:0.25rem;color:#15803d">▾ Joined <span style="opacity:0.7">(Member)</span> <span style="opacity:0.55">· {{ joinedGroups.length }}</span></p>
+            <div class="table-like">
+              <div v-for="group in joinedGroups.slice(0, 3)" :key="group.id" class="table-row table-row--clickable" @click="router.push(`/groups/${group.id}`)" role="link" tabindex="0" @keydown.enter="router.push(`/groups/${group.id}`)">
+                <div class="table-row__content">
+                  <strong>{{ group.title }}</strong>
+                  <span class="muted" style="font-size:0.88rem">{{ group.course_code }} &middot; {{ group.meeting_format }} &middot; {{ group.active_member_count ?? 0 }}/{{ group.capacity }} members</span>
+                  <span v-if="group.location" class="muted" style="font-size:0.83rem;display:flex;align-items:center;gap:0.2rem"><MapPinIcon style="width:0.85em;height:0.85em;flex-shrink:0" />{{ group.location }}</span>
+                </div>
+                <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="`/groups/${group.id}`">Go</RouterLink>
+              </div>
+            </div>
+          </template>
+
+          <p v-if="!myGroups.length" class="empty-state">You have not joined any groups yet.</p>
+        </div>
+
+        <!-- Next steps -->
+        <div v-if="showOnboarding" ref="nextStepsRef" class="card">
+          <div class="section-header__content">
+            <h2 class="section-title"><ClipboardDocumentListIcon class="heading-icon heading-icon--sm" /> Next Steps</h2>
+            <p class="muted tight">A short path to get fully set up.</p>
           </div>
-          <div class="metric-card">
-            <strong>{{ dashboard.reliability.noShowCount }}</strong>
-            <span>No-shows</span>
-          </div>
-          <div class="metric-card">
-            <strong>{{ dashboard.reliability.ratingCount }}</strong>
-            <span>Ratings received</span>
+          <div class="step-list">
+            <div v-for="step in nextSteps" :key="step.id" class="step-item">
+              <span class="step-index">{{ step.index }}</span>
+              <span class="status-tag" :data-status="step.status === 'completed' ? 'completed' : step.status === 'in_progress' ? 'active' : 'scheduled'">
+                {{ step.status === 'completed' ? 'Done' : step.status === 'in_progress' ? 'In progress' : 'To do' }}<CheckIcon v-if="step.status === 'completed'" style="width:0.9em;height:0.9em;vertical-align:-0.1em;margin-left:0.2em" />
+              </span>
+              <div class="step-copy">
+                <strong>{{ step.title }}</strong>
+                <span>{{ step.description }}</span>
+              </div>
+              <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="step.to">
+                {{ step.actionLabel }}
+              </RouterLink>
+            </div>
           </div>
         </div>
-        <p class="muted tight" style="font-size:0.92rem">{{ reliabilitySummary }}</p>
       </div>
     </div>
 
-    <div class="grid grid-2" v-if="dashboard">
-      <!-- Your groups -->
+    <!-- Layout without suggestions: compact grid -->
+    <template v-if="dashboard && !suggestedGroups.length">
       <div class="card">
-        <div class="section-header__content">
-          <h2 class="section-title">Your Groups</h2>
-          <p class="muted tight">Groups you lead or belong to.</p>
+        <div class="section-header">
+          <div class="section-header__content">
+            <h2 class="section-title">Suggested Groups</h2>
+            <p class="muted tight">Matched to your courses, schedule, and reliability.</p>
+          </div>
+          <RouterLink class="button secondary" to="/groups">Browse All</RouterLink>
         </div>
-        <div class="table-like">
-          <div v-for="group in myGroups" :key="group.id" class="table-row">
-            <div class="table-row__content">
-              <RouterLink :to="`/groups/${group.id}`">
-                <strong>{{ group.title }}</strong>
-              </RouterLink>
-              <span class="muted" style="font-size:0.88rem">{{ group.course_code }} &middot; {{ group.meeting_format }}</span>
+        <p class="empty-state">No suggested groups yet — add courses and availability in your profile to get matched.</p>
+      </div>
+
+      <div class="grid grid-2">
+        <!-- Reliability snapshot -->
+        <div class="card">
+          <div class="section-header__content">
+            <h2 class="section-title">Your Reliability</h2>
+            <p class="muted tight">Based on completed session attendance and peer ratings.</p>
+          </div>
+          <ReliabilityBadge :score="dashboard.reliability.score" />
+          <div class="metric-grid" style="margin-top:0.75rem">
+            <div class="metric-card">
+              <strong>{{ Math.round((dashboard.reliability.attendanceRate ?? 0) * 100) }}%</strong>
+              <span>Attendance rate</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.peerRatingAverage != null ? Number(dashboard.reliability.peerRatingAverage).toFixed(1) : '—' }}</strong>
+              <span>Avg peer rating</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.noShowCount }}</strong>
+              <span>No-shows</span>
+            </div>
+            <div class="metric-card">
+              <strong>{{ dashboard.reliability.ratingCount }}</strong>
+              <span>Ratings received</span>
             </div>
           </div>
+          <p class="muted tight" style="font-size:0.92rem">{{ reliabilitySummary }}</p>
+        </div>
+
+        <!-- Your groups -->
+        <div class="card">
+          <div class="section-header">
+            <div class="section-header__content">
+              <h2 class="section-title">Your Groups <UserGroupIcon class="heading-icon heading-icon--sm" /> <span class="group-count-badge">{{ myGroups.length }}</span></h2>
+            </div>
+            <RouterLink v-if="myGroups.length >= 3" class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" to="/my-groups">See All</RouterLink>
+          </div>
+
+          <template v-if="ledGroups.length">
+            <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-bottom:0.25rem;color:#1d4ed8">▾ Led by You <span style="opacity:0.7">(Leader)</span> <span style="opacity:0.55">· {{ ledGroups.length }}</span></p>
+            <div class="table-like">
+              <div v-for="group in ledGroups.slice(0, 3)" :key="group.id" class="table-row table-row--clickable" @click="router.push(`/groups/${group.id}`)" role="link" tabindex="0" @keydown.enter="router.push(`/groups/${group.id}`)">
+                <div class="table-row__content">
+                  <strong>{{ group.title }}</strong>
+                  <span class="muted" style="font-size:0.88rem">{{ group.course_code }} &middot; {{ group.meeting_format }} &middot; {{ group.active_member_count ?? 0 }}/{{ group.capacity }} members</span>
+                  <span v-if="group.location" class="muted" style="font-size:0.83rem;display:flex;align-items:center;gap:0.2rem"><MapPinIcon style="width:0.85em;height:0.85em;flex-shrink:0" />{{ group.location }}</span>
+                </div>
+                <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="`/groups/${group.id}`">Go</RouterLink>
+              </div>
+            </div>
+          </template>
+
+          <template v-if="joinedGroups.length">
+            <p style="font-size:0.8rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;margin-top:0.75rem;margin-bottom:0.25rem;color:#15803d">▾ Joined <span style="opacity:0.7">(Member)</span> <span style="opacity:0.55">· {{ joinedGroups.length }}</span></p>
+            <div class="table-like">
+              <div v-for="group in joinedGroups.slice(0, 3)" :key="group.id" class="table-row table-row--clickable" @click="router.push(`/groups/${group.id}`)" role="link" tabindex="0" @keydown.enter="router.push(`/groups/${group.id}`)">
+                <div class="table-row__content">
+                  <strong>{{ group.title }}</strong>
+                  <span class="muted" style="font-size:0.88rem">{{ group.course_code }} &middot; {{ group.meeting_format }} &middot; {{ group.active_member_count ?? 0 }}/{{ group.capacity }} members</span>
+                  <span v-if="group.location" class="muted" style="font-size:0.83rem;display:flex;align-items:center;gap:0.2rem"><MapPinIcon style="width:0.85em;height:0.85em;flex-shrink:0" />{{ group.location }}</span>
+                </div>
+                <RouterLink class="button secondary" style="font-size:0.88rem;min-height:2.2rem;padding:0.5rem 0.85rem" :to="`/groups/${group.id}`">Go</RouterLink>
+              </div>
+            </div>
+          </template>
+
           <p v-if="!myGroups.length" class="empty-state">You have not joined any groups yet.</p>
         </div>
       </div>
 
-      <!-- Next steps -->
+      <!-- Next steps full width -->
       <div ref="nextStepsRef" class="card">
         <div class="section-header__content">
-          <h2 class="section-title">Next Steps</h2>
+          <h2 class="section-title"><ClipboardDocumentListIcon class="heading-icon heading-icon--sm" /> Next Steps</h2>
           <p class="muted tight">A short path to get fully set up.</p>
         </div>
         <div class="step-list">
           <div v-for="step in nextSteps" :key="step.id" class="step-item">
             <span class="step-index">{{ step.index }}</span>
             <span class="status-tag" :data-status="step.status === 'completed' ? 'completed' : step.status === 'in_progress' ? 'active' : 'scheduled'">
-              {{ step.status === 'completed' ? 'Done' : step.status === 'in_progress' ? 'In progress' : 'To do' }}
+              {{ step.status === 'completed' ? 'Done' : step.status === 'in_progress' ? 'In progress' : 'To do' }}<CheckIcon v-if="step.status === 'completed'" style="width:0.9em;height:0.9em;vertical-align:-0.1em;margin-left:0.2em" />
             </span>
             <div class="step-copy">
               <strong>{{ step.title }}</strong>
@@ -162,7 +321,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </template>
 
     <p v-if="inviteMessage" class="feedback-banner feedback-banner--success">{{ inviteMessage }}</p>
     <p v-if="errorMessage" class="feedback-banner feedback-banner--error error-text">{{ errorMessage }}</p>
@@ -171,18 +330,23 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
+import { CalendarDaysIcon, CheckIcon, ClipboardDocumentListIcon, MapPinIcon, UserGroupIcon } from '@heroicons/vue/24/outline';
 import GroupCard from '../components/GroupCard.vue';
 import ReliabilityBadge from '../components/ReliabilityBadge.vue';
-import { groupsApi, invitationsApi, usersApi } from '../services/api';
+import { groupsApi, invitationsApi, sessionsApi, usersApi } from '../services/api';
+
+const router = useRouter();
 
 const dashboard = ref(null);
 const suggestedGroups = ref([]);
 const myGroups = ref([]);
+const upcomingSessions = ref([]);
 const pendingInvitations = ref([]);
 const errorMessage = ref('');
 const inviteMessage = ref('');
 const nextStepsRef = ref(null);
+const showOnboarding = ref(true);
 
 const profileSignals = computed(() => {
   if (!dashboard.value) return [];
@@ -199,6 +363,9 @@ const profileStepProgress = computed(() => {
   if (!profileSignals.value.length) return 0;
   return profileSignals.value.filter(Boolean).length / profileSignals.value.length;
 });
+
+const ledGroups = computed(() => myGroups.value.filter(g => g.isLeader));
+const joinedGroups = computed(() => myGroups.value.filter(g => !g.isLeader));
 
 const hasCompletedProfile = computed(() => profileStepProgress.value === 1);
 const hasJoinedGroup = computed(() => myGroups.value.length > 0);
@@ -285,9 +452,11 @@ const reliabilitySummary = computed(() => {
   return 'Attending sessions consistently and earning peer ratings will strengthen your score over time.';
 });
 
-function formatRoleLabel(role) {
-  if (!role) return 'Member';
-  return String(role).charAt(0).toUpperCase() + String(role).slice(1);
+const liveSessions = computed(() => upcomingSessions.value.filter(s => s.status === 'active'));
+const scheduledSessions = computed(() => upcomingSessions.value.filter(s => s.status === 'scheduled').slice(0, 3));
+
+function formatSessionDate(iso) {
+  return new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function scrollToNextSteps() {
@@ -296,17 +465,34 @@ function scrollToNextSteps() {
 
 onMounted(async () => {
   try {
-    const [userResponse, groupsResponse, mineResponse, inviteResponse] = await Promise.all([
+    const [userResponse, groupsResponse, mineResponse, inviteResponse, sessionsResponse] = await Promise.all([
       usersApi.getMe(),
       groupsApi.list(),
       groupsApi.mine(),
-      invitationsApi.getMyInvitations().catch(() => ({ data: { invitations: [] } }))
+      invitationsApi.getMyInvitations().catch(() => ({ data: { invitations: [] } })),
+      sessionsApi.upcoming().catch(() => ({ data: { sessions: [] } }))
     ]);
 
     dashboard.value = userResponse.data;
-    suggestedGroups.value = groupsResponse.data.groups.slice(0, 3);
+    suggestedGroups.value = groupsResponse.data.groups.filter(g => !g.isMember).slice(0, 3);
     myGroups.value = mineResponse.data.groups;
+    upcomingSessions.value = sessionsResponse.data.sessions;
     pendingInvitations.value = inviteResponse.data.invitations;
+
+    // Hide onboarding banner + next steps after user has seen completion 3 times
+    const userId = userResponse.data.user.id;
+    const seenKey = `onboarding_seen_${userId}`;
+    const hiddenKey = `onboarding_hidden_${userId}`;
+    if (localStorage.getItem(hiddenKey)) {
+      showOnboarding.value = false;
+    } else if (onboardingProgress.value >= 100) {
+      const seen = Number(localStorage.getItem(seenKey) || 0) + 1;
+      localStorage.setItem(seenKey, seen);
+      if (seen > 3) {
+        localStorage.setItem(hiddenKey, '1');
+        showOnboarding.value = false;
+      }
+    }
   } catch (error) {
     errorMessage.value = error.message;
   }

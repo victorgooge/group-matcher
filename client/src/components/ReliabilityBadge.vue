@@ -1,6 +1,6 @@
 <template>
   <span class="pill reliability-pill" :title="`Reliability score: ${label}`" :data-tier="tier">
-    <span class="reliability-pill__dot" />
+    <component :is="icon" class="reliability-pill__icon" />
     <strong>{{ label }}</strong>
     <span class="muted">({{ normalizedScore }})</span>
   </span>
@@ -8,6 +8,13 @@
 
 <script setup>
 import { computed } from 'vue';
+import {
+  CheckBadgeIcon,
+  HandThumbUpIcon,
+  ExclamationCircleIcon,
+  ExclamationTriangleIcon,
+  SparklesIcon
+} from '@heroicons/vue/24/outline';
 
 const props = defineProps({
   score: {
@@ -32,5 +39,15 @@ const tier = computed(() => {
   if (props.score >= 75) return 'good';
   if (props.score >= 50) return 'mixed';
   return 'low';
+});
+
+const icon = computed(() => {
+  switch (tier.value) {
+    case 'high': return CheckBadgeIcon;
+    case 'good': return HandThumbUpIcon;
+    case 'mixed': return ExclamationCircleIcon;
+    case 'low': return ExclamationTriangleIcon;
+    default: return SparklesIcon;
+  }
 });
 </script>

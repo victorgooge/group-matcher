@@ -34,9 +34,9 @@
             Role
             <select v-model="form.role">
               <option value="student">Student</option>
-              <option value="leader">Group Leader</option>
+              <option value="teacher">Teacher</option>
             </select>
-            <span class="field-hint">Pick the role that best matches how you expect to use the app.</span>
+            <span class="field-hint">Students can join and create study groups. Teachers have additional oversight.</span>
           </label>
         </div>
 

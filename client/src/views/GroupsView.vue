@@ -4,10 +4,10 @@
       <div class="page-header">
         <div class="page-header__content">
           <p class="eyebrow">Find A Group</p>
-          <h1 class="page-title">Browse Study Groups</h1>
+          <h1 class="page-title"><MagnifyingGlassIcon class="heading-icon" /> Browse Study Groups</h1>
           <p class="muted tight">Search by course or format, then open the groups that look like the best fit.</p>
         </div>
-        <RouterLink v-if="auth.user?.role === 'leader' || auth.user?.role === 'admin'" class="button" to="/groups/new">Create Group</RouterLink>
+        <RouterLink v-if="auth.isAuthenticated" class="button" to="/groups/new">Create Group</RouterLink>
       </div>
 
       <div class="grid grid-2">
@@ -45,6 +45,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue';
 import { RouterLink } from 'vue-router';
+import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline';
 import GroupCard from '../components/GroupCard.vue';
 import { useAuthStore } from '../stores/auth';
 import { groupsApi } from '../services/api';
@@ -65,7 +66,8 @@ async function loadGroups() {
 
   try {
     const response = await groupsApi.list(filters);
-    groups.value = response.data.groups;
+    const all = response.data.groups;
+    groups.value = [...all.filter(g => !g.isMember), ...all.filter(g => g.isMember)];
   } catch (error) {
     errorMessage.value = error.message;
   } finally {

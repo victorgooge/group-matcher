@@ -5,9 +5,11 @@ import { fileURLToPath } from 'url';
 
 const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const defaultDbPath = path.resolve(currentDirectory, '../../data/study-group-matcher.sqlite');
-const absolutePath = process.env.DB_PATH
-  ? path.resolve(process.env.DB_PATH)
-  : defaultDbPath;
+const absolutePath = process.env.DATABASE_PATH
+  ? path.resolve(process.env.DATABASE_PATH)
+  : process.env.DB_PATH
+    ? path.resolve(process.env.DB_PATH)
+    : defaultDbPath;
 
 fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
 

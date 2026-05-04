@@ -5,6 +5,8 @@ docs/
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
 coverage/
 *.sqlite
 *.sqlite-shm

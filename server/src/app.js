@@ -10,9 +10,10 @@ import invitationRoutes from './routes/invitations.js';
 
 const app = express();
 
-app.use(cors({ origin: true }));
+const corsOrigin = process.env.CORS_ORIGIN || true;
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
-app.use(morgan('dev'));
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, project: 'study-group-matcher' });

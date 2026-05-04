@@ -11,7 +11,14 @@
           <p class="muted tight">
             {{ formatDate(details.session.scheduledAt) }} &middot;
             {{ details.session.durationMinutes }} min &middot;
-            {{ details.session.location || 'Location TBD' }}
+            <a
+              v-if="details.session.location?.startsWith('http')"
+              :href="details.session.location"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="meeting-link"
+            >{{ details.session.location }}</a>
+            <span v-else>{{ details.session.location || 'Location TBD' }}</span>
           </p>
           <div class="chip-row" style="margin-top:0.5rem">
             <span class="status-tag" :data-status="details.session.status">{{ sessionStatusLabel(details.session.status) }}</span>
