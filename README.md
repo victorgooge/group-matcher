@@ -6,6 +6,12 @@ Built for **CSC 4370 — Web Programming** at Georgia State University.
 
 ---
 
+## Demo
+
+[![StudySync Demo](https://img.youtube.com/vi/HEGm9cXEWio/maxresdefault.jpg)](https://youtu.be/HEGm9cXEWio)
+
+---
+
 ## Stack
 
 | Layer | Technology |
